@@ -11,6 +11,7 @@ namespace Mautic\PluginBundle\EventListener;
 
 use Mautic\CoreBundle\EventListener\CommonSubscriber;
 use Mautic\FormBundle\Event\FormBuilderEvent;
+use Mautic\FormBundle\Event\SubmissionEvent;
 use Mautic\FormBundle\FormEvents;
 
 /**
@@ -25,6 +26,7 @@ class FormSubscriber extends CommonSubscriber
     static public function getSubscribedEvents()
     {
         return array(
+            FormEvents::FORM_ON_SUBMIT=> array('onFormSubmit', 0),
             FormEvents::FORM_ON_BUILD => array('onFormBuild', 0)
         );
     }
@@ -42,7 +44,48 @@ class FormSubscriber extends CommonSubscriber
             'formTheme'   => 'MauticPluginBundle:FormTheme\Integration',
             'callback'    => array('\\Mautic\\PluginBundle\\Helper\\EventHelper', 'pushLead')
         );
-
         $event->addSubmitAction('plugin.leadpush', $action);
+
+        $action = array(
+            'label'       => 'mautic.plugin.actions.facebookLogin',
+            'formType'    => 'sociallogin_facebook',
+            'template'    => 'MauticSocialBundle:Integration\Facebook:login.html.php',
+        );
+
+        $event->addFormField('plugin.loginFacebook', $action);
+    }
+
+    /*
+	* Form submit event
+	*
+	* @param SubmissionEvent $event
+	*/
+    public function onFormSubmit(SubmissionEvent $event)
+    {
+        $data = $this->factory->getRequest()->request->get('mauticform');
+
+        $integrationHelper = $this->factory->getHelper('integration');
+
+        $services = $integrationHelper->getIntegrationObjects();
+        $success = false;
+
+        foreach ($services as $name => $s)
+        {
+
+            $settings = $s->getIntegrationSettings();
+            if (!$settings->isPublished())
+            {
+                continue;
+            }
+            if (method_exists($s, 'createLead'))
+            {
+                if ($s->createLead($data))
+                {
+                    $success = true;
+                }
+            }
+        }
+
+        return $success;
     }
 }

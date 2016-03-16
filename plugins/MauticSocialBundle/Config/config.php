@@ -19,6 +19,11 @@ return array(
                 'class' => 'MauticPlugin\MauticSocialBundle\Form\Type\FacebookType',
                 'alias' => 'socialmedia_facebook'
             ),
+            'mautic.form.type.social.facebooklogin'   => array(
+                'class' => 'MauticPlugin\MauticSocialBundle\Form\Type\FacebookLoginType',
+                'arguments' => 'mautic.factory',
+                'alias' => 'sociallogin_facebook'
+            ),
             'mautic.form.type.social.twitter'    => array(
                 'class' => 'MauticPlugin\MauticSocialBundle\Form\Type\TwitterType',
                 'alias' => 'socialmedia_twitter'
@@ -31,6 +36,7 @@ return array(
                 'class' => 'MauticPlugin\MauticSocialBundle\Form\Type\LinkedInType',
                 'alias' => 'socialmedia_linkedin'
             )
-        )
+        ),
+        
     )
 );

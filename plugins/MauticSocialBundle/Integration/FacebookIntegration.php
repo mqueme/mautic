@@ -9,6 +9,7 @@
 
 namespace MauticPlugin\MauticSocialBundle\Integration;
 
+use Mautic\LeadBundle\Entity\Lead;
 /**
  * Class FacebookIntegration
  */
@@ -45,7 +46,8 @@ class FacebookIntegration extends SocialIntegration
     public function getSupportedFeatures()
     {
         return array(
-            'share_button'
+            'share_button',
+            'login_button'
         );
     }
 
@@ -135,7 +137,7 @@ class FacebookIntegration extends SocialIntegration
         }
     }
 
-    /**
+    /**$post
      * {@inheritdoc}
      */
     public function getUserId($identifier, &$socialCache)
@@ -164,20 +166,164 @@ class FacebookIntegration extends SocialIntegration
         return false;
     }
 
+	/**
+	 * Convert and assign the data to assignable lead fields
+	 *
+	 * @param $data
+	 *
+	 * @return array
+	 */
+	protected function matchUpData($data)
+	{
+		$info = array();
+		$available = $this->getAvailableLeadFields();
+		
+		$socialToLeads = $this->getIntegrationFieldsToLeadFields();
+		$socialProfileUrls = $this->factory->getHelper('integration')->getSocialProfileUrlRegex();
+
+		foreach ($available as $field => $fieldDetails)
+		{
+			if (!isset($data->$field) || !isset($socialToLeads[$field]))
+			{
+				$info[$field] = '';
+			}
+			else
+			{
+				$values = $data->$field;
+
+				switch ($fieldDetails['type'])
+				{
+					case 'string':
+					case 'boolean':
+						$key = $socialToLeads[$field];
+						$info[$key] = $values;
+						break;
+					case 'object':
+						foreach ($fieldDetails['fields'] as $f)
+						{
+							$name = (stripos($f, $field) === false) ? $f . ucfirst($field) : $f;
+							if (isset($values->$f))
+							{
+								$key = $socialToLeads[$name];
+								$info[$key] = $values->$f;
+							}
+						}
+						break;
+					case 'array_object':
+						if ($field == "link")
+						{
+							$info[$key] = "facebook ({$values})";
+						}
+
+						break;
+				}
+			}
+		}
+		$this->factory->getLogger()->addError(print_r($info, true));
+		return $info;
+	}
+
     /**
      * {@inheritdoc}
      */
     public function getAvailableLeadFields($settings = array())
     {
         // Until lead profile support is restored
-        return array();
+        //return array();
 
         return array(
             'first_name' => array('type' => 'string'),
             'last_name'  => array('type' => 'string'),
             'name'       => array('type' => 'string'),
             'gender'     => array('type' => 'string'),
-            'locale'     => array('type' => 'string')
+            'locale'     => array('type' => 'string'),
+            'email'      => array('type' => 'string'),
+			'link'		 => array(
+								"type" => "array_object",
+								"fields" => array(
+									"otherProfile",
+									"contributor",
+									"website",
+									"other"
+								)
+							),
         );
     }
+
+	/**
+	 * {@inheritdoc}
+	 */
+	public function getIntegrationFieldsToLeadFields($settings = array())
+	{
+		return array(
+			'first_name' => 'firstname',
+			'last_name' => 'lastname',
+			'name' => 'name',			//not integrated
+			'gender' => 'gender',			//not integrated
+			'locale' => 'locale',			//not integrated
+			'email' => 'email',
+			'link'	=> 'facebook'
+		);
+	}
+
+	/**
+	 * create or update existing lead
+	 *
+	 * @socialdata $data
+	 *
+	 */
+	public function createLead($data)
+	{
+
+		$leadModel = $this->factory->getModel('lead');
+		$uniqueLeadFields = $this->factory->getModel('lead.field')->getUniqueIdentiferFields();
+		$uniqueLeadFieldData = array();
+
+		foreach ($data as $k => $v)
+		{
+			if (strpos($k, 'FBSL'))
+			{
+				$leadValues = json_decode($v, true);
+				$matchedFields = $this->matchUpData((object)$leadValues);
+
+				foreach ($matchedFields as $leadField => $value)
+				{
+					if (array_key_exists($leadField, $uniqueLeadFields) && !empty($value))
+					{
+						$uniqueLeadFieldData[$leadField] = $value;
+					}
+				}
+			}
+
+		}
+
+		// Default to new lead
+		$lead = new Lead();
+		$lead->setNewlyCreated(true);
+
+		if (count($uniqueLeadFieldData))
+		{
+			$existingLeads = $this->factory->getEntityManager()->getRepository('MauticLeadBundle:Lead')->getLeadsByUniqueFields($uniqueLeadFieldData);
+
+			if (!empty($existingLeads))
+			{
+				foreach ($existingLeads as $existingLead)
+				{
+					$leadModel->setFieldValues($existingLead, $matchedFields, false);
+					$leadModel->saveEntity($existingLead);
+				}
+				$lead = $existingLeads[0];
+			}
+		}
+
+		$leadModel->setFieldValues($lead, $matchedFields, false);
+
+		$lead->setLastActive(new \DateTime());
+
+		$leadModel->saveEntity($lead, false);
+
+		$leadModel->setSystemCurrentLead($lead);
+	}
+
+  
 }
