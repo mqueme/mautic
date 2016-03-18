@@ -18,14 +18,14 @@ $settings = $field['properties'];
 $clientId = (!empty($settings['clientId'])) ? $settings['clientId'] : '';
 $locale = $app->getRequest()->getLocale();
 
-$maxRows = (!empty($settings['maxRows'])) ? intval($settings['maxRows']) : 0;
+$maxRows = (!empty($settings['maxRows'])) ? intval($settings['maxRows']) : 1;
 $size = (!empty($settings['size'])) ? $settings['size'] : 'medium';
 $showFaces = (!empty($settings['showFaces'])) ? $settings['showFaces'] : 'false';
 $autoLogout = (!empty($settings['autoLogout'])) ? $settings['autoLogout'] : 'false';
 $socialProfile = (!empty($settings['socialProfile'])) ? $settings['socialProfile'] : '';
 
 $socialHiddenFields = explode(',', $socialProfile);
-$inputName = 'mauticform[' . $field['alias'] . '_FBSL]';
+$inputName = 'mauticform[' . $field['alias'] . '_Facebook]';
 $name = ' name="' . $inputName . '"';
 $formName = str_replace("_", "", $formName);
 $formButtons = (!empty($inForm)) ? $view->render('MauticFormBundle:Builder:actions.html.php',

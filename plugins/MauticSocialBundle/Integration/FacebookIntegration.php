@@ -212,6 +212,7 @@ class FacebookIntegration extends SocialIntegration
 					case 'array_object':
 						if ($field == "link")
 						{
+							$key = $socialToLeads[$field];
 							$info[$key] = "facebook ({$values})";
 						}
 
@@ -241,11 +242,8 @@ class FacebookIntegration extends SocialIntegration
 			'link'		 => array(
 								"type" => "array_object",
 								"fields" => array(
-									"otherProfile",
-									"contributor",
-									"website",
-									"other"
-								)
+									"Profile"
+									)
 							),
         );
     }
@@ -279,22 +277,15 @@ class FacebookIntegration extends SocialIntegration
 		$uniqueLeadFields = $this->factory->getModel('lead.field')->getUniqueIdentiferFields();
 		$uniqueLeadFieldData = array();
 
-		foreach ($data as $k => $v)
+		$leadValues = json_decode($data, true);
+		$matchedFields = $this->matchUpData((object)$leadValues);
+
+		foreach ($matchedFields as $leadField => $value)
 		{
-			if (strpos($k, 'FBSL'))
+			if (array_key_exists($leadField, $uniqueLeadFields) && !empty($value))
 			{
-				$leadValues = json_decode($v, true);
-				$matchedFields = $this->matchUpData((object)$leadValues);
-
-				foreach ($matchedFields as $leadField => $value)
-				{
-					if (array_key_exists($leadField, $uniqueLeadFields) && !empty($value))
-					{
-						$uniqueLeadFieldData[$leadField] = $value;
-					}
-				}
+				$uniqueLeadFieldData[$leadField] = $value;
 			}
-
 		}
 
 		// Default to new lead
@@ -324,6 +315,4 @@ class FacebookIntegration extends SocialIntegration
 
 		$leadModel->setSystemCurrentLead($lead);
 	}
-
-  
 }

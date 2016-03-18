@@ -53,6 +53,14 @@ class FormSubscriber extends CommonSubscriber
         );
 
         $event->addFormField('plugin.loginFacebook', $action);
+
+        $action = array(
+            'label'       => 'mautic.plugin.actions.googlePlusLogin',
+            'formType'    => 'sociallogin_googleplus',
+            'template'    => 'MauticSocialBundle:Integration\GooglePlus:login.html.php',
+        );
+
+        $event->addFormField('plugin.loginGooglePlus', $action);
     }
 
     /*
@@ -63,23 +71,32 @@ class FormSubscriber extends CommonSubscriber
     public function onFormSubmit(SubmissionEvent $event)
     {
         $data = $this->factory->getRequest()->request->get('mauticform');
-
+        $integrationObject = null;
+        foreach ($data as $k => $v)
+        {
+            switch(true){
+                case strpos($k, 'Facebook'):    $integrationObject = 'Facebook';
+                                                $leadData = $v;
+                                                break;
+                case strpos($k, 'GooglePlus'):  $integrationObject = 'GooglePlus';
+                                                $leadData = $v;
+                                                break;
+            }
+        }
+        
+        $form = $this->factory->getRequest()->request->get('settings');
+        $this->factory->getLogger()->addDebug(print_r($form, true));
         $integrationHelper = $this->factory->getHelper('integration');
 
-        $services = $integrationHelper->getIntegrationObjects();
+        $service = $integrationHelper->getIntegrationObject($integrationObject);
         $success = false;
 
-        foreach ($services as $name => $s)
+        $settings = $service->getIntegrationSettings();
+        if ($settings->isPublished())
         {
-
-            $settings = $s->getIntegrationSettings();
-            if (!$settings->isPublished())
+            if (method_exists($service, 'createLead'))
             {
-                continue;
-            }
-            if (method_exists($s, 'createLead'))
-            {
-                if ($s->createLead($data))
+                if ($service->createLead($leadData))
                 {
                     $success = true;
                 }
