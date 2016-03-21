@@ -1133,6 +1133,102 @@ abstract class AbstractIntegration
     }
 
     /**
+     * Takes profile data from an integration and maps it to Mautic's lead fields
+     *
+     * @param       $data
+     * @param array $config
+     *
+     * @return array
+     */
+    public function populateMauticLeadData($data, $config = array())
+    {
+        if (!isset($config['leadFields'])) {
+            $config = $this->mergeConfigToFeatureSettings($config);
+
+            if (empty($config['leadFields'])) {
+
+                return array();
+            }
+        }
+
+        $leadFields      = $config['leadFields'];
+        $availableFields = $this->getAvailableLeadFields($config);
+        $matched         = array();
+
+        foreach ($availableFields as $key => $field) {
+            if (isset($leadFields[$key]) && isset($data[$key])) {
+                $matched[$leadFields[$key]] = $data[$key];
+            }
+        }
+
+        return $matched;
+    }
+
+    /**
+     * Create or update existing lead from the integration profile data
+     *
+     * @param $data
+     *
+     * @return Lead
+     */
+    public function createLead($data)
+    {
+        if (is_object($data)) {
+            // Convert to array in all levels
+            $data = json_encode(json_decode($data));
+        } elseif (is_string($data)) {
+            // Assume JSON
+            $data = json_decode($data, true);
+        }
+
+        // Glean supported fields from what was returned by the integration
+        $gleanedData = $this->matchUpData($data);
+
+        // Match that data with mapped lead fields
+        $matchedFields = $this->populateMauticLeadData($gleanedData);
+
+        // Find unique identifier fields used by the integration
+        $leadModel           = $this->factory->getModel('lead');
+        $uniqueLeadFields    = $this->factory->getModel('lead.field')->getUniqueIdentiferFields();
+        $uniqueLeadFieldData = array();
+
+        foreach ($matchedFields as $leadField => $value) {
+            if (array_key_exists($leadField, $uniqueLeadFields) && !empty($value)) {
+                $uniqueLeadFieldData[$leadField] = $value;
+            }
+        }
+
+        // Default to new lead
+        $lead = new Lead();
+        $lead->setNewlyCreated(true);
+
+        $singleLead = true;
+        if (count($uniqueLeadFieldData)) {
+            $existingLeads = $this->factory->getEntityManager()->getRepository('MauticLeadBundle:Lead')->getLeadsByUniqueFields($uniqueLeadFieldData);
+
+            if (!empty($existingLeads)) {
+                $singleLead = false;
+                foreach ($existingLeads as $existingLead) {
+                    $leadModel->setFieldValues($existingLead, $matchedFields, false);
+                    $lead->setLastActive(new \DateTime());
+                    $leadModel->saveEntity($existingLead, false);
+                }
+
+                // Return first lead found
+                $lead = $existingLeads[0];
+            }
+        }
+
+        if ($singleLead) {
+            $leadModel->setFieldValues($lead, $matchedFields, false);
+            $lead->setLastActive(new \DateTime());
+            $leadModel->saveEntity($lead, false);
+        }
+
+        return $lead;
+    }
+
+    /**
      * Merges a config from integration_list with feature settings
      *
      * @param array $config
@@ -1143,7 +1239,7 @@ abstract class AbstractIntegration
     {
         $featureSettings = $this->settings->getFeatureSettings();
 
-        if (empty($config['integration']) || (!empty($config['integration']) && $config['integration'] == $this->getName())) {
+        if (isset($config['config']) && (empty($config['integration']) || (!empty($config['integration']) && $config['integration'] == $this->getName()))) {
             $featureSettings = array_merge($featureSettings, $config['config']);
         }
 
