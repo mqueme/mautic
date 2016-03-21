@@ -1133,6 +1133,107 @@ abstract class AbstractIntegration
     }
 
     /**
+     * Takes profile data from an integration and maps it to Mautic's lead fields
+     *
+     * @param       $data
+     * @param array $config
+     *
+     * @return array
+     */
+    public function populateMauticLeadData($data, $config = array())
+    {
+        // Glean supported fields from what was returned by the integration
+        $gleanedData = $this->matchUpData($data);
+
+        if (!isset($config['leadFields'])) {
+            $config = $this->mergeConfigToFeatureSettings($config);
+
+            if (empty($config['leadFields'])) {
+
+                return array();
+            }
+        }
+
+        $leadFields      = $config['leadFields'];
+        $availableFields = $this->getAvailableLeadFields($config);
+        $matched         = array();
+
+        foreach ($availableFields as $key => $field) {
+            if (isset($leadFields[$key]) && isset($gleanedData[$key])) {
+                $matched[$leadFields[$key]] = $gleanedData[$key];
+            }
+        }
+
+        return $matched;
+    }
+
+    /**
+     * Create or update existing Mautic lead from the integration's profile data
+     *
+     * @param mixed     $data     Profile data from integration
+     * @param bool|true $persist  Set to false to not persist lead to the database in this method
+     *
+     * @return Lead
+     */
+    public function getMauticLead($data, $persist = true)
+    {
+        if (is_object($data)) {
+            // Convert to array in all levels
+            $data = json_encode(json_decode($data));
+        } elseif (is_string($data)) {
+            // Assume JSON
+            $data = json_decode($data, true);
+        }
+
+        // Match that data with mapped lead fields
+        $matchedFields = $this->populateMauticLeadData($data);
+
+        // Find unique identifier fields used by the integration
+        $leadModel           = $this->factory->getModel('lead');
+        $uniqueLeadFields    = $this->factory->getModel('lead.field')->getUniqueIdentiferFields();
+        $uniqueLeadFieldData = array();
+
+        foreach ($matchedFields as $leadField => $value) {
+            if (array_key_exists($leadField, $uniqueLeadFields) && !empty($value)) {
+                $uniqueLeadFieldData[$leadField] = $value;
+            }
+        }
+
+        // Default to new lead
+        $lead = new Lead();
+        $lead->setNewlyCreated(true);
+
+        if (count($uniqueLeadFieldData)) {
+            $existingLeads = $this->factory->getEntityManager()->getRepository('MauticLeadBundle:Lead')->getLeadsByUniqueFields($uniqueLeadFieldData);
+
+            if (!empty($existingLeads)) {
+                $lead = array_shift($existingLeads);
+
+                // Update remaining leads
+                if (count($existingLeads)) {
+                    foreach ($existingLeads as $existingLead) {
+                        $leadModel->setFieldValues($existingLead, $matchedFields, false);
+                        $lead->setLastActive(new \DateTime());
+
+                        // Because multiple leads were found; use repository to persist to bypass events
+                        $leadModel->getRepository->saveEntity($existingLead, false);
+                    }
+                }
+            }
+        }
+
+        $leadModel->setFieldValues($lead, $matchedFields, false);
+        $lead->setLastActive(new \DateTime());
+
+        if ($persist) {
+            // Only persist if instructed to do so as it could be that calling code needs to manipulate the lead prior to executing event listeners
+            $leadModel->saveEntity($lead, false);
+        }
+
+        return $lead;
+    }
+
+    /**
      * Merges a config from integration_list with feature settings
      *
      * @param array $config
@@ -1143,7 +1244,7 @@ abstract class AbstractIntegration
     {
         $featureSettings = $this->settings->getFeatureSettings();
 
-        if (empty($config['integration']) || (!empty($config['integration']) && $config['integration'] == $this->getName())) {
+        if (isset($config['config']) && (empty($config['integration']) || (!empty($config['integration']) && $config['integration'] == $this->getName()))) {
             $featureSettings = array_merge($featureSettings, $config['config']);
         }
 
