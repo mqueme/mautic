@@ -143,3 +143,4 @@ Mautic.getIntegrationConfig = function (el, settings) {
         }
     );
 };
+

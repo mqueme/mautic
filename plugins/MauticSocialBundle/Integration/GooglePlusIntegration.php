@@ -153,137 +153,6 @@ class GooglePlusIntegration extends SocialIntegration
     }
 
     /**
-     * Convert and assign the data to assignable fields
-     *
-     * @param $data
-     *
-     * @return array
-     */
-    protected function matchUpData ($data)
-    {
-        $info              = array();
-        $available         = $this->getAvailableLeadFields();
-        $translator        = $this->factory->getTranslator();
-
-        $socialToLeads = $this->getIntegrationFieldsToLeadFields();
-        $socialProfileUrls = $this->factory->getHelper('integration')->getSocialProfileUrlRegex();
-
-        foreach ($available as $field => $fieldDetails) {
-            if (!isset($data->$field)) {
-                $info[$field] = '';
-            } else {
-                $values = $data->$field;
-
-                switch ($fieldDetails['type']) {
-                    case 'string':
-                    case 'boolean':
-                        $key = (isset($socialToLeads[$field])) ?  $socialToLeads[$field] : $field;
-                        $info[$key] = $values;
-                        break;
-                    case 'object':
-                        $values = (object)$values;
-                       
-                        foreach ($fieldDetails['fields'] as $f) {
-                            $name = (stripos($f, $field) === false) ? $f . ucfirst($field) : $f;
-
-                            if (isset($values->$f)) {
-                                $key = (isset($socialToLeads[$f])) ?  $socialToLeads[$f] : $name;
-                                $info[$key] = $values->$f;
-                            }
-                        }
-                        break;
-                    case 'array_object':
-                        if ($field == "urls") {
-                            foreach ($values as $k => $v) {
-                                $socialMatch = false;
-                                $v=(object)$v;
-                                foreach ($socialProfileUrls as $service => $regex) {
-                                    if (is_array($regex)) {
-                                        foreach ($regex as $r) {
-                                            preg_match($r, $v->value, $match);
-                                            if (!empty($match[1])) {
-                                                $info[$service . 'ProfileHandle'] = $match[1];
-                                                $socialMatch                      = true;
-                                                break;
-                                            }
-                                        }
-                                        if ($socialMatch)
-                                            break;
-                                    } else {
-                                        preg_match($regex, $v->value, $match);
-                                        if (!empty($match[1])) {
-                                            $info[$service . 'ProfileHandle'] = $match[1];
-                                            $socialMatch                      = true;
-                                            break;
-                                        }
-                                    }
-                                }
-
-                                if (!$socialMatch) {
-                                    $name = $v->type . 'Urls';
-                                    $key = (isset($socialToLeads[$v->type])) ?  $socialToLeads[$v->type] : $name;
-                                    if (isset($info[$key])) {
-                                        $info[$key] .= ", {$v->label} ({$v->value})";
-                                    } else {
-                                        $info[$key] = "{$v->label} ({$v->value})";
-                                    }
-                                }
-                            }
-                        } elseif ($field == "organizations") {
-                            $organizations = array();
-
-                            foreach ($values as $k => $v) {
-                                $v=(object)$v;
-                                if (!empty($v->name) && !empty($v->title))
-                                    $organization = $v->name . ', ' . $v->title;
-                                elseif (!empty($v->name)) {
-                                    $organization = $v->name;
-                                } elseif (!empty($v->title)) {
-                                    $organization = $v->title;
-                                }
-
-                                if (!empty($v->startDate) && !empty($v->endDate)) {
-                                    $organization .= " " . $v->startDate . ' - ' . $v->endDate;
-                                } elseif (!empty($v->startDate)) {
-                                    $organization .= ' ' . $v->startDate;
-                                } elseif (!empty($v->endDate)) {
-                                    $organization .= ' ' . $v->endDate;
-                                }
-
-                                if (!empty($v->primary)) {
-                                    $organization .= " (" . $translator->trans('mautic.lead.lead.primary') . ")";
-                                }
-                                $organizations[$v->type][] = $organization;
-                            }
-                            foreach ($organizations as $type => $orgs) {
-                                $key = (isset($socialToLeads[$type])) ?  $socialToLeads[$type] : $type;
-                                $info[$key] = implode("; ", $orgs);
-                            }
-                        } elseif ($field == "placesLived") {
-                            $places = array();
-                            foreach ($values as $k => $v) {
-                                $v=(object)$v;
-                                $primary  = (!empty($v->primary)) ? ' (' . $translator->trans('mautic.lead.lead.primary') . ')' : '';
-                                $places[] = $v->value . $primary;
-                            }
-                            $key = (isset($socialToLeads[$field])) ?  $socialToLeads[$field] : $field;
-                            $info[$key] = implode('; ', $places);
-                        } elseif ($field == "emails"){
-                            foreach ($values as $k => $v) {
-                                $v=(object)$v;
-                                $key = (isset($socialToLeads[$v->type])) ?  $socialToLeads[$v->type] : $v->type;
-                                $info[$key] = $v->value;
-                            }
-                        }
-                        break;
-                }
-            }
-        }
-
-        return $info;
-    }
-
-    /**
      * {@inheritdoc}
      */
     public function getAvailableLeadFields($settings = array())
@@ -298,7 +167,7 @@ class GooglePlusIntegration extends SocialIntegration
             'url'                => array("type" => "string"),
             "urls"               => array(
                 "type"   => "array_object",
-                "fields" => array(
+                "fields" => array( 
                     "otherProfile",
                     "contributor",
                     "website",
@@ -348,23 +217,10 @@ class GooglePlusIntegration extends SocialIntegration
         );
     }
 
-    public function getIntegrationFieldsToLeadFields($settings = array())
-    {
-        return array(
-            'occupation' => 'position',
-            'url' => 'googleplus',
-            'givenName' => 'firstname',
-            'familyName' => 'lastname',
-            'locale' => 'locale',
-            'account' => 'email',
-            'other' => 'website',
-        );
-    }
-
-    /**
+      /**
      * {@inheritdoc}
      */
-    public function getRequiredKeyFields ()
+    public function getRequiredKeyFields()
     {
         return array(
             'key' => 'mautic.integration.keyfield.api',
@@ -436,56 +292,5 @@ class GooglePlusIntegration extends SocialIntegration
         }
 
         return false;
-    }
-    /**
-     * create or update existing lead
-     *
-     * @socialdata $data
-     *
-     */
-    public function createLead($data)
-    {
-        
-        $leadModel = $this->factory->getModel('lead');
-        $uniqueLeadFields = $this->factory->getModel('lead.field')->getUniqueIdentiferFields();
-        $uniqueLeadFieldData = array();
-        
-        $leadValues = json_decode($data, true);
-        $matchedFields = $this->matchUpData((object)$leadValues);
-
-        foreach ($matchedFields as $leadField => $value)
-        {
-            if (array_key_exists($leadField, $uniqueLeadFields) && !empty($value))
-            {
-                $uniqueLeadFieldData[$leadField] = $value;
-            }
-        }
-        
-        // Default to new lead
-        $lead = new Lead();
-        $lead->setNewlyCreated(true);
-        
-        if (count($uniqueLeadFieldData))
-        {
-            $existingLeads = $this->factory->getEntityManager()->getRepository('MauticLeadBundle:Lead')->getLeadsByUniqueFields($uniqueLeadFieldData);
-            
-            if (!empty($existingLeads))
-            {
-                foreach ($existingLeads as $existingLead)
-                {
-                    $leadModel->setFieldValues($existingLead, $matchedFields, false);
-                    $leadModel->saveEntity($existingLead);
-                }
-                $lead = $existingLeads[0];
-            }
-        }
-        
-        $leadModel->setFieldValues($lead, $matchedFields, false);
-        
-        $lead->setLastActive(new \DateTime());
-        
-        $leadModel->saveEntity($lead, false);
-        
-        $leadModel->setSystemCurrentLead($lead);
     }
 }

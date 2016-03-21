@@ -1157,13 +1157,16 @@ abstract class AbstractIntegration
         $leadFields      = $config['leadFields'];
         $availableFields = $this->getAvailableLeadFields($config);
         $matched         = array();
+        $this->factory->getLogger()->addError(print_r($leadFields, true)); 
+        $this->factory->getLogger()->addError(print_r($gleanedData, true));
 
-        foreach ($availableFields as $key => $field) {
+
+        foreach ($gleanedData as $key => $field) {
             if (isset($leadFields[$key]) && isset($gleanedData[$key])) {
                 $matched[$leadFields[$key]] = $gleanedData[$key];
             }
         }
-
+        $this->factory->getLogger()->addError(print_r($matched, true));
         return $matched;
     }
 
@@ -1303,7 +1306,7 @@ abstract class AbstractIntegration
 
         foreach ($available as $field => $fieldDetails) {
             if (is_array($data)) {
-                if (!isset($data[$field])) {
+                if (!isset($data[$field]) and !is_object($data)) {
                     $info[$field] = '';
                     continue;
                 } else {
@@ -1324,19 +1327,26 @@ abstract class AbstractIntegration
                     $info[$field] = $values;
                     break;
                 case 'object':
+                    $values=(object)$values;
                     foreach ($fieldDetails['fields'] as $f) {
                         if (isset($values->$f)) {
                             $fn        = $this->matchFieldName($field, $f);
+                            
                             $info[$fn] = $values->$f;
                         }
                     }
                     break;
                 case 'array_object':
-                    $objects = array();
-                    foreach ($values as $k => $v) {
-                        $objects[] = $v->value;
-                    }
-                    $info[$field] = implode('; ', $objects);
+                        $objects = array();
+                        foreach ($values as $k => $v) {
+                            $v=(object)$v;
+                            if(isset($v->value)){
+                                $objects[] = $v->value;
+                            }
+
+                        }
+                        $fn = (isset($fieldDetails['fields'][0])) ? $this->matchFieldName($field, $fieldDetails['fields'][0]) : $field;
+                        $info[$fn] = implode('; ', $objects);
                     break;
             }
         }

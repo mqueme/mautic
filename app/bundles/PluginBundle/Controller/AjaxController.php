@@ -159,4 +159,69 @@ class AjaxController extends CommonAjaxController
 
         return $this->sendJsonResponse($dataArray);
     }
+
+    /**
+     * Get the HTML for integration properties
+     *
+     * @param Request $request
+     *
+     * @return \Symfony\Component\HttpFoundation\JsonResponse
+     */
+	protected function getIntegrationOAuthTokenAction(Request $request)
+	{
+		$integration = $request->request->get('integration');
+		$settings = $request->request->get('settings');
+		$dataArray = array('success' => 0);
+		$this->factory->getLogger()->addDebug(print_r($request, true));
+		/*if (!empty($integration) && !empty($settings))
+		{
+			// @var \Mautic\PluginBundle\Helper\IntegrationHelper $helper
+			$helper = $this->factory->getHelper('integration');
+			// @var \Mautic\PluginBundle\Integration\AbstractIntegration $object
+			$object = $helper->getIntegrationObject($integration);
+			
+			if ($object)
+			{
+				$objectSettings = $object->getIntegrationSettings();
+				$defaults = $objectSettings->getFeatureSettings();
+				
+				$form = $this->createForm('integration_config', $defaults, array(
+					'integration' => $object,
+					'csrf_protection' => false
+				));
+				
+				$form = $this->setFormTheme($form, 'MauticCoreBundle:Helper:blank_form.html.php', 'MauticPluginBundle:FormTheme\Integration');
+				
+				$html = $this->render('MauticCoreBundle:Helper:blank_form.html.php', array(
+					'form' => $form,
+					'function' => 'widget',
+					'variables' => array(
+						'integration' => $object
+					)
+				))->getContent();
+				
+				$prefix = str_replace('[integration]', '[config]', $settings['name']);
+				$idPrefix = str_replace(array(
+					'][',
+					'[',
+					']'
+				), '_', $prefix);
+				if (substr($idPrefix, -1) == '_')
+				{
+					$idPrefix = substr($idPrefix, 0, -1);
+				}
+				
+				$html = preg_replace('/integration_config\[(.*?)\]/', $prefix . '[$1]', $html);
+				$html = str_replace('integration_config', $idPrefix, $html);
+				
+				$dataArray['success'] = 1;
+				$dataArray['html'] = $html;
+			}
+		}*/
+		
+		return $this->sendJsonResponse($dataArray);
+	}
+	
+
+
 }
