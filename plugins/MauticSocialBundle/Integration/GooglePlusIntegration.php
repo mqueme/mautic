@@ -9,12 +9,15 @@
 
 namespace MauticPlugin\MauticSocialBundle\Integration;
 
+use Mautic\LeadBundle\Entity\Lead;
+
 /**
  * Class GooglePlusIntegration
  */
 class GooglePlusIntegration extends SocialIntegration
 {
-    /**
+
+     /**
      * {@inheritdoc}
      */
     public function getName ()
@@ -161,6 +164,8 @@ class GooglePlusIntegration extends SocialIntegration
         $info              = array();
         $available         = $this->getAvailableLeadFields();
         $translator        = $this->factory->getTranslator();
+
+        $socialToLeads = $this->getIntegrationFieldsToLeadFields();
         $socialProfileUrls = $this->factory->getHelper('integration')->getSocialProfileUrlRegex();
 
         foreach ($available as $field => $fieldDetails) {
@@ -172,13 +177,18 @@ class GooglePlusIntegration extends SocialIntegration
                 switch ($fieldDetails['type']) {
                     case 'string':
                     case 'boolean':
-                        $info[$field] = $values;
+                        $key = (isset($socialToLeads[$field])) ?  $socialToLeads[$field] : $field;
+                        $info[$key] = $values;
                         break;
                     case 'object':
+                        $values = (object)$values;
+                       
                         foreach ($fieldDetails['fields'] as $f) {
                             $name = (stripos($f, $field) === false) ? $f . ucfirst($field) : $f;
+
                             if (isset($values->$f)) {
-                                $info[$name] = $values->$f;
+                                $key = (isset($socialToLeads[$f])) ?  $socialToLeads[$f] : $name;
+                                $info[$key] = $values->$f;
                             }
                         }
                         break;
@@ -186,6 +196,7 @@ class GooglePlusIntegration extends SocialIntegration
                         if ($field == "urls") {
                             foreach ($values as $k => $v) {
                                 $socialMatch = false;
+                                $v=(object)$v;
                                 foreach ($socialProfileUrls as $service => $regex) {
                                     if (is_array($regex)) {
                                         foreach ($regex as $r) {
@@ -210,10 +221,11 @@ class GooglePlusIntegration extends SocialIntegration
 
                                 if (!$socialMatch) {
                                     $name = $v->type . 'Urls';
-                                    if (isset($info[$name])) {
-                                        $info[$name] .= ", {$v->label} ({$v->value})";
+                                    $key = (isset($socialToLeads[$v->type])) ?  $socialToLeads[$v->type] : $name;
+                                    if (isset($info[$key])) {
+                                        $info[$key] .= ", {$v->label} ({$v->value})";
                                     } else {
-                                        $info[$name] = "{$v->label} ({$v->value})";
+                                        $info[$key] = "{$v->label} ({$v->value})";
                                     }
                                 }
                             }
@@ -221,6 +233,7 @@ class GooglePlusIntegration extends SocialIntegration
                             $organizations = array();
 
                             foreach ($values as $k => $v) {
+                                $v=(object)$v;
                                 if (!empty($v->name) && !empty($v->title))
                                     $organization = $v->name . ', ' . $v->title;
                                 elseif (!empty($v->name)) {
@@ -243,15 +256,24 @@ class GooglePlusIntegration extends SocialIntegration
                                 $organizations[$v->type][] = $organization;
                             }
                             foreach ($organizations as $type => $orgs) {
-                                $info[$type . "Organizations"] = implode("; ", $orgs);
+                                $key = (isset($socialToLeads[$type])) ?  $socialToLeads[$type] : $type;
+                                $info[$key] = implode("; ", $orgs);
                             }
                         } elseif ($field == "placesLived") {
                             $places = array();
                             foreach ($values as $k => $v) {
+                                $v=(object)$v;
                                 $primary  = (!empty($v->primary)) ? ' (' . $translator->trans('mautic.lead.lead.primary') . ')' : '';
                                 $places[] = $v->value . $primary;
                             }
-                            $info[$field] = implode('; ', $places);
+                            $key = (isset($socialToLeads[$field])) ?  $socialToLeads[$field] : $field;
+                            $info[$key] = implode('; ', $places);
+                        } elseif ($field == "emails"){
+                            foreach ($values as $k => $v) {
+                                $v=(object)$v;
+                                $key = (isset($socialToLeads[$v->type])) ?  $socialToLeads[$v->type] : $v->type;
+                                $info[$key] = $v->value;
+                            }
                         }
                         break;
                 }
@@ -273,6 +295,7 @@ class GooglePlusIntegration extends SocialIntegration
             "skills"             => array("type" => "string"),
             "birthday"           => array("type" => "string"),
             "gender"             => array("type" => "string"),
+            'url'                => array("type" => "string"),
             "urls"               => array(
                 "type"   => "array_object",
                 "fields" => array(
@@ -291,6 +314,12 @@ class GooglePlusIntegration extends SocialIntegration
                     "middleName",
                     "honorificPrefix",
                     "honorificSuffix"
+                )
+            ),
+            "emails"               => array(
+                "type"   => "array_object",
+                "fields" => array(
+                    "account"
                 )
             ),
             "tagline"            => array("type" => "string"),
@@ -319,13 +348,28 @@ class GooglePlusIntegration extends SocialIntegration
         );
     }
 
+    public function getIntegrationFieldsToLeadFields($settings = array())
+    {
+        return array(
+            'occupation' => 'position',
+            'url' => 'googleplus',
+            'givenName' => 'firstname',
+            'familyName' => 'lastname',
+            'locale' => 'locale',
+            'account' => 'email',
+            'other' => 'website',
+        );
+    }
+
     /**
      * {@inheritdoc}
      */
     public function getRequiredKeyFields ()
     {
         return array(
-            'key' => 'mautic.integration.keyfield.api'
+            'key' => 'mautic.integration.keyfield.api',
+            'client_id'      => 'mautic.integration.keyfield.clientid',
+            'client_secret'  => 'mautic.integration.keyfield.clientsecret'
         );
     }
 
@@ -392,5 +436,56 @@ class GooglePlusIntegration extends SocialIntegration
         }
 
         return false;
+    }
+    /**
+     * create or update existing lead
+     *
+     * @socialdata $data
+     *
+     */
+    public function createLead($data)
+    {
+        
+        $leadModel = $this->factory->getModel('lead');
+        $uniqueLeadFields = $this->factory->getModel('lead.field')->getUniqueIdentiferFields();
+        $uniqueLeadFieldData = array();
+        
+        $leadValues = json_decode($data, true);
+        $matchedFields = $this->matchUpData((object)$leadValues);
+
+        foreach ($matchedFields as $leadField => $value)
+        {
+            if (array_key_exists($leadField, $uniqueLeadFields) && !empty($value))
+            {
+                $uniqueLeadFieldData[$leadField] = $value;
+            }
+        }
+        
+        // Default to new lead
+        $lead = new Lead();
+        $lead->setNewlyCreated(true);
+        
+        if (count($uniqueLeadFieldData))
+        {
+            $existingLeads = $this->factory->getEntityManager()->getRepository('MauticLeadBundle:Lead')->getLeadsByUniqueFields($uniqueLeadFieldData);
+            
+            if (!empty($existingLeads))
+            {
+                foreach ($existingLeads as $existingLead)
+                {
+                    $leadModel->setFieldValues($existingLead, $matchedFields, false);
+                    $leadModel->saveEntity($existingLead);
+                }
+                $lead = $existingLeads[0];
+            }
+        }
+        
+        $leadModel->setFieldValues($lead, $matchedFields, false);
+        
+        $lead->setLastActive(new \DateTime());
+        
+        $leadModel->saveEntity($lead, false);
+        
+        $leadModel->setSystemCurrentLead($lead);
     }
 }

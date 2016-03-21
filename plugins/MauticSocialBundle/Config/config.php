@@ -32,6 +32,11 @@ return array(
                 'class' => 'MauticPlugin\MauticSocialBundle\Form\Type\GooglePlusType',
                 'alias' => 'socialmedia_googleplus'
             ),
+            'mautic.form.type.social.googlepluslogin'   => array(
+                'class' => 'MauticPlugin\MauticSocialBundle\Form\Type\GooglePlusLoginType',
+                'arguments' => 'mautic.factory',
+                'alias' => 'sociallogin_googleplus'
+            ),
             'mautic.form.type.social.linkedin'   => array(
                 'class' => 'MauticPlugin\MauticSocialBundle\Form\Type\LinkedInType',
                 'alias' => 'socialmedia_linkedin'
