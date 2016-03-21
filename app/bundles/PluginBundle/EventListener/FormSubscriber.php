@@ -83,7 +83,7 @@ class FormSubscriber extends CommonSubscriber
                                                 break;
             }
         }
-        
+
         $form = $this->factory->getRequest()->request->get('settings');
         $this->factory->getLogger()->addDebug(print_r($form, true));
         $integrationHelper = $this->factory->getHelper('integration');
@@ -94,12 +94,10 @@ class FormSubscriber extends CommonSubscriber
         $settings = $service->getIntegrationSettings();
         if ($settings->isPublished())
         {
-            if (method_exists($service, 'createLead'))
+            // Create or merge Mautic lead
+            if ($service->getMauticLead($leadData))
             {
-                if ($service->createLead($leadData))
-                {
-                    $success = true;
-                }
+                $success = true;
             }
         }
 
