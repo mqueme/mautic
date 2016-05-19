@@ -81,7 +81,7 @@ class TwitterIntegration extends SocialIntegration
         if (isset($requestToken['oauth_token'])) {
             $url .= '?oauth_token='.$requestToken['oauth_token'];
         }
-        $this->factory->getLogger()->addError(print_r($url,true));
+
         return $url;
     }
 
@@ -144,9 +144,6 @@ class TwitterIntegration extends SocialIntegration
         //tell getUserId to return a user array if it obtains it
         $this->preventDoubleCall = true;
         $identifier = $this->keys;
-        if(!isset($identifier[$this->getName()])){
-            $identifier[$this->getName()] = "account/verify_credentials";
-        }
 
         if ($id = $this->getUserId($identifier, $socialCache)) {
             if (is_array($id)) {
@@ -154,7 +151,7 @@ class TwitterIntegration extends SocialIntegration
                 $data = $id;
             } else {
                 $data = $this->makeRequest($this->getApiUrl("account/verify_credentials"), array(
-                    //'user_id'          => $id,
+
                     'include_email'=>'true',
                     'include_entities' => 'false',
                     'oauth_token' => $identifier['oauth_token']
@@ -165,7 +162,7 @@ class TwitterIntegration extends SocialIntegration
                 $data  = $data[0];
             }
 
-            $this->factory->getLogger()->addError(print_r($data,true));
+
             if (isset($data)) {
                 $info                  = $this->matchUpData($data);
                 $info['profileHandle'] = $data['screen_name'];
@@ -185,10 +182,12 @@ class TwitterIntegration extends SocialIntegration
      */
     public function getPublicActivity ($identifier, &$socialCache)
     {
+        $screen_name=parse_url($identifier);
+
         if ($id = $this->getUserId($identifier, $socialCache)) {
             //due to the way Twitter filters, get more than 10 tweets
             $data = $this->makeRequest($this->getApiUrl("/statuses/user_timeline"), array(
-                'user_id'         => $id,
+                'screen_name'         => substr($screen_name['path'],1),
                 'exclude_replies' => 'true',
                 'count'           => 25,
                 'trim_user'       => 'true'
@@ -201,7 +200,13 @@ class TwitterIntegration extends SocialIntegration
                     'photos' => array(),
                     'tags'   => array()
                 );
+                $info                  = $this->matchUpData($data);
+                $info['profileHandle'] = substr($screen_name['path'],1);
+                //remove the size variant
 
+                $info['profileImage'] = '';
+
+                $socialCache['profile'] = $info;
                 foreach ($data as $k => $d) {
                     if ($k == 10) {
                         break;
