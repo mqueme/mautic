@@ -16,6 +16,8 @@ use Mautic\StageBundle\Entity\Stage;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\OptionsResolver\OptionsResolverInterface;
+use Symfony\Component\Form\FormEvent;
+use Symfony\Component\Form\FormEvents;
 
 /**
  * Class StageType
@@ -40,6 +42,9 @@ class StageType extends AbstractType
     {
         $this->translator = $factory->getTranslator();
         $this->security   = $factory->getSecurity();
+
+        /** @var \Mautic\PointBundle\Model\PointModel $model */
+        $this->pointModel = $factory->getModel('point');
     }
 
     /**
@@ -132,6 +137,22 @@ class StageType extends AbstractType
             'required'   => false
         ));
 
+        $actions = $this->pointModel->getPointActions();
+        $ff      = $builder->getFormFactory();
+
+        $func = function (FormEvent $e) use ($actions, $ff) {
+            $data = $e->getData();
+            $form = $e->getForm();
+            $type = ($data instanceof Stage) ? $data->getType() : $data['type'];
+
+            if (isset($actions['actions'][$type])) {
+                $formType = (!empty($actions['actions'][$type]['formType'])) ? $actions['actions'][$type]['formType'] : 'genericpoint_settings';
+                $form->add('properties', $formType, array(
+                    'label' => false
+                ));
+            }
+        };
+
         //add category
         $builder->add('category', 'category', array(
             'bundle' => 'stage'
@@ -142,6 +163,10 @@ class StageType extends AbstractType
         if (!empty($options["action"])) {
             $builder->setAction($options["action"]);
         }
+
+        // Register the function above as EventListener on PreSet and PreBind
+        $builder->addEventListener(FormEvents::PRE_SET_DATA, $func);
+        $builder->addEventListener(FormEvents::PRE_BIND, $func);
     }
 
     /**
