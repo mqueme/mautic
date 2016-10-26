@@ -45,9 +45,7 @@ class SalesforceApi extends CrmApi
         } else {
             $request_url = sprintf($queryUrl.'/%s', $operation);
         }
-
         $response = $this->integration->makeRequest($request_url, $elementData, $method, $this->requestSettings);
-
         if (!empty($response['errors'])) {
             throw new ApiErrorException(implode(', ', $response['errors']));
         } elseif (is_array($response)) {
@@ -65,7 +63,6 @@ class SalesforceApi extends CrmApi
                     $errors[] = $r['message'];
                 }
             }
-
             if (!empty($errors)) {
                 throw new ApiErrorException(implode(', ', $errors));
             }
@@ -107,8 +104,10 @@ class SalesforceApi extends CrmApi
     {
         $config = $this->integration->getIntegrationSettings()->getFeatureSettings();
 
+        $results = [];
+
         $namespace           = (!empty($config['namespace'])) ? $config['namespace'].'__' : '';
-        $mActivityObjectName = $namespace.'mautic_timeline__c';
+        $mActivityObjectName = $namespace.'timeline__c';
 
         if (!empty($activity)) {
             foreach ($activity as $sfId => $records) {
@@ -122,7 +121,6 @@ class SalesforceApi extends CrmApi
                         $namespace.'Description__c'  => $record['description'],
                         'Name'                       => $record['name'],
                         $namespace.'Mautic_url__c'   => $records['leadUrl'],
-                        $namespace.'ReferenceId__c'  => $record['id'].'-'.$sfId,
                     ];
 
                     if ($object === 'Lead') {
@@ -135,8 +133,11 @@ class SalesforceApi extends CrmApi
 
             if (!empty($activityData)) {
                 //todo: log posted activities so that they don't get sent over again
-                $queryUrl = $this->integration->getQueryUrl();
-                $results  = $this->request(
+                $queryUrl  = $this->integration->getQueryUrl();
+                $resources = $this->request('', [], 'GET', false, null, $queryUrl);
+
+                if (isset($resources['composite'])) {
+                    $results = $this->request(
                     'composite/tree/'.$mActivityObjectName,
                     $activityData,
                     'POST',
@@ -144,9 +145,9 @@ class SalesforceApi extends CrmApi
                     null,
                     $queryUrl
                 );
-
+                }
                 $newRecordData = [];
-                if ($results['hasErrors']) {
+                if (!empty($results) && $results['hasErrors']) {
                     foreach ($results['results'] as $result) {
                         if ($result['errors'][0]['statusCode'] == 'CANNOT_UPDATE_CONVERTED_LEAD') {
                             $references   = explode('-', $result['referenceId']);
