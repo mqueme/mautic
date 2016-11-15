@@ -84,7 +84,16 @@ class SalesforceApi extends CrmApi
      */
     public function getLeadFields($object = null)
     {
-        return $this->request('describe', [], 'GET', false, $object);
+        $cache = $this->getCache();
+
+        $leadFields = $cache->getItem('integration.salesforce.leadFields.'.$object);
+
+        if (!$leadFields->isHit()) {
+            $leadFields->set($this->request('describe', [], 'GET', false, $object));
+            $cache->save($leadFields);
+        }
+
+        return $leadFields->get();
     }
 
     /**
