@@ -17,6 +17,7 @@ use Mautic\LeadBundle\Entity\Lead;
 use Mautic\LeadBundle\Model\LeadModel;
 use Mautic\PluginBundle\Entity\IntegrationEntity;
 use MauticPlugin\MauticCrmBundle\Api\SalesforceApi;
+use Symfony\Component\Form\FormBuilder;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 
 /**
@@ -168,7 +169,11 @@ class SalesforceIntegration extends CrmAbstractIntegration
     }
 
     /**
+     * @param array $settings
+     *
      * @return array|mixed
+     *
+     * @throws \Exception
      */
     public function getAvailableLeadFields($settings = [])
     {
@@ -270,6 +275,8 @@ class SalesforceIntegration extends CrmAbstractIntegration
      * Amend mapped lead data before creating to Mautic.
      *
      * @param $data
+     *
+     * @return int|null
      */
     public function amendLeadDataBeforeMauticPopulate($data, $object)
     {
@@ -287,7 +294,7 @@ class SalesforceIntegration extends CrmAbstractIntegration
                     $dataObject[$key.'__'.$object] = $item;
                 }
 
-                if ($dataObject) {
+                if (isset($dataObject) && $dataObject) {
                     $lead                  = $this->getMauticLead($dataObject, true, null, null);
                     $integrationEntityRepo = $this->factory->getEntityManager()->getRepository('MauticPluginBundle:IntegrationEntity');
                     $integrationId         = $integrationEntityRepo->getIntegrationsEntityId('Salesforce', $object, 'lead', $lead->getId());
@@ -381,6 +388,8 @@ class SalesforceIntegration extends CrmAbstractIntegration
      * @param array  $fields
      * @param array  $keys
      * @param string $object
+     *
+     * @return array
      */
     public function cleanSalesForceData($fields, $keys, $object)
     {
@@ -398,6 +407,9 @@ class SalesforceIntegration extends CrmAbstractIntegration
 
     /**
      * @param $lead
+     * @param array $config
+     *
+     * @return array|bool
      */
     public function pushLead($lead, $config = [])
     {
@@ -452,9 +464,6 @@ class SalesforceIntegration extends CrmAbstractIntegration
         return false;
     }
 
-    /**
-     * @param $lead
-     */
     public function getLeads($params = [], $query = null)
     {
         $executed = null;
@@ -494,10 +503,11 @@ class SalesforceIntegration extends CrmAbstractIntegration
     }
 
     /**
-     * @param $query
-     * @param $object
+     * @param array $fields
+     *
+     * @return array
      */
-    public function ammendToSfFields($fields)
+    public function amendToSfFields($fields)
     {
         $newFields = [];
         foreach ($fields as $key => $field) {

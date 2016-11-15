@@ -4,7 +4,11 @@ namespace MauticPlugin\MauticCrmBundle\Api;
 
 use Mautic\PluginBundle\Exception\ApiErrorException;
 use MauticPlugin\MauticCrmBundle\Integration\CrmAbstractIntegration;
+use MauticPlugin\MauticCrmBundle\Integration\SalesforceIntegration;
 
+/**
+ * @property SalesforceIntegration $integration
+ */
 class SalesforceApi extends CrmApi
 {
     protected $object          = 'Lead';
@@ -191,7 +195,7 @@ class SalesforceApi extends CrmApi
     /**
      * Get Salesforce leads.
      *
-     * @param string $query
+     * @param string $query *
      *
      * @return mixed
      */
@@ -209,7 +213,7 @@ class SalesforceApi extends CrmApi
         $settings['feature_settings']['objects'][] = $object;
 
         $fields       = $this->integration->getAvailableLeadFields($settings);
-        $fields       = $this->integration->ammendToSfFields($fields);
+        $fields       = $this->integration->amendToSfFields($fields);
         $fields['id'] = ['id' => []];
         $result       = [];
 
@@ -226,10 +230,6 @@ class SalesforceApi extends CrmApi
 
     /**
      * Get Salesforce leads.
-     *
-     * @param string $query
-     *
-     * @return mixed
      */
     public function getSalesForceLeadById($id, $params, $object)
     {
