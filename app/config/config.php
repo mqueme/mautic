@@ -198,6 +198,17 @@ $container->loadFromExtension('framework', [
     )*/
 ]);
 
+$container->loadFromExtension('cache', [
+    'providers' => [
+        'mautic_cache' => [
+                'factory' => '',
+                'options' => [
+                    'services' => '',
+                ],
+            ],
+
+    ],
+]);
 //Doctrine Configuration
 $dbalSettings = [
     'driver'   => '%mautic.db_driver%',
