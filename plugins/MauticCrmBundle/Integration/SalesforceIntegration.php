@@ -19,6 +19,8 @@ use Mautic\LeadBundle\Helper\IdentifyCompanyHelper;
 use Mautic\LeadBundle\Model\LeadModel;
 use Mautic\PluginBundle\Entity\IntegrationEntity;
 use MauticPlugin\MauticCrmBundle\Api\SalesforceApi;
+use Symfony\Component\Cache\Adapter\FilesystemAdapter;
+use Symfony\Component\Form\FormBuilder;
 use Symfony\Component\Routing\Generator\UrlGeneratorInterface;
 
 /**
@@ -184,25 +186,30 @@ class SalesforceIntegration extends CrmAbstractIntegration
     }
 
     /**
+     * @param array $settings
+     *
      * @return array|mixed
+     *
+     * @throws \Exception
      */
     public function getAvailableLeadFields($settings = [])
     {
-        static $leadObject = [];
+        $salesFields       = [];
         $silenceExceptions = (isset($settings['silence_exceptions'])) ? $settings['silence_exceptions'] : true;
-        $salesForceObjects = [];
+        $salesForceobjects = [];
 
         if (isset($settings['feature_settings']['objects'])) {
-            $salesForceObjects = $settings['feature_settings']['objects'];
+            $salesForceobjects = $settings['feature_settings']['objects'];
         }
 
         $isRequired = function (array $field) {
             return $field['type'] !== 'boolean' && empty($field['nillable']) && !in_array($field['name'], ['Status']);
         };
+
         try {
             if ($this->isAuthorized()) {
-                if (!empty($salesForceObjects) and is_array($salesForceObjects)) {
-                    foreach ($salesForceObjects as $key => $sfObject) {
+                if (!empty($salesForceobjects) and is_array($salesForceobjects)) {
+                    foreach ($salesForceobjects as $sfObject) {
                         if (isset($sfObject) and $sfObject == 'Activity') {
                             continue;
                         }
@@ -296,6 +303,8 @@ class SalesforceIntegration extends CrmAbstractIntegration
      * Amend mapped lead data before creating to Mautic.
      *
      * @param $data
+     *
+     * @return int|null
      */
     public function amendLeadDataBeforeMauticPopulate($data, $object)
     {
@@ -320,7 +329,7 @@ class SalesforceIntegration extends CrmAbstractIntegration
                     }
                 }
 
-                if ($dataObject) {
+                if (isset($dataObject) && $dataObject) {
                     if ($object == 'Lead' or $object == 'Contact') {
                         $entity                = $this->getMauticLead($dataObject, true, null, null);
                         $mauticObjectReference = 'lead';
@@ -424,6 +433,8 @@ class SalesforceIntegration extends CrmAbstractIntegration
      * @param array  $fields
      * @param array  $keys
      * @param string $object
+     *
+     * @return array
      */
     public function cleanSalesForceData($fields, $keys, $object)
     {
@@ -441,6 +452,9 @@ class SalesforceIntegration extends CrmAbstractIntegration
 
     /**
      * @param $lead
+     * @param array $config
+     *
+     * @return array|bool
      */
     public function pushLead($lead, $config = [])
     {
@@ -567,10 +581,11 @@ class SalesforceIntegration extends CrmAbstractIntegration
         return $executed;
     }
     /**
-     * @param $query
-     * @param $object
+     * @param array $fields
+     *
+     * @return array
      */
-    public function ammendToSfFields($fields)
+    public function amendToSfFields($fields)
     {
         $newFields = [];
         foreach ($fields as $key => $field) {
@@ -947,5 +962,17 @@ class SalesforceIntegration extends CrmAbstractIntegration
         unset($pointChangeLog, $emailStats, $formSubmissions);
 
         return $leadActivity;
+    }
+
+    /**
+     * @return FilesystemAdapter
+     *
+     * @TODO This should probably be moved to a service and system-wide
+     */
+    public function getCache()
+    {
+        $cacheDir = $this->dispatcher->getContainer()->get('mautic.helper.paths')->getSystemPath('cache');
+
+        return new FilesystemAdapter('integration.salesforce', 0, $cacheDir);
     }
 }

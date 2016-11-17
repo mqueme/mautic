@@ -4,7 +4,11 @@ namespace MauticPlugin\MauticCrmBundle\Api;
 
 use Mautic\PluginBundle\Exception\ApiErrorException;
 use MauticPlugin\MauticCrmBundle\Integration\CrmAbstractIntegration;
+use MauticPlugin\MauticCrmBundle\Integration\SalesforceIntegration;
 
+/**
+ * @property SalesforceIntegration $integration
+ */
 class SalesforceApi extends CrmApi
 {
     protected $object          = 'Lead';
@@ -83,7 +87,16 @@ class SalesforceApi extends CrmApi
             $object = 'Account'; //salesforce object name
         }
 
-        return $this->request('describe', [], 'GET', false, $object);
+        $cache = $this->integration->getCache();
+
+        $leadFields = $cache->getItem('leadFields.'.$object);
+
+        if (!$leadFields->isHit()) {
+            $leadFields->set($this->request('describe', [], 'GET', false, $object));
+            $cache->save($leadFields);
+        }
+
+        return $leadFields->get();
     }
 
     /**
@@ -195,25 +208,25 @@ class SalesforceApi extends CrmApi
     /**
      * Get Salesforce leads.
      *
-     * @param string $query
+     * @param string $query *
      *
      * @return mixed
      */
     public function getLeads($query, $object)
     {
         //find out if start date is not our of range for org
-        static $organization = [];
-
         if (isset($query['start'])) {
-            $queryUrl = $this->integration->getQueryUrl();
+            $queryUrl                = $this->integration->getQueryUrl();
+            $organizationCreatedDate = $this->getOrganizationCreatedDate();
 
-            if (empty($organization)) {
-                $organization = $this->request('query', ['q' => 'SELECT CreatedDate from Organization'], 'GET', false, null, $queryUrl);
-            }
-            if (strtotime($query['start']) < strtotime($organization['records'][0]['CreatedDate'])) {
-                $query['start'] = date('c', strtotime($organization['records'][0]['CreatedDate'].' +1 hour'));
+            if (strtotime($query['start']) < strtotime($organizationCreatedDate)) {
+                $query['start'] = date('c', strtotime($organizationCreatedDate.' +1 hour'));
             }
         }
+        $settings['feature_settings']['objects'][] = $object;
+
+        $fields = $this->integration->getAvailableLeadFields($settings);
+        $fields = $this->integration->amendToSfFields($fields);
 
         if ($object == 'Account') {
             $fields = $this->integration->getFormCompanyFields();
@@ -234,5 +247,21 @@ class SalesforceApi extends CrmApi
         }
 
         return $result;
+    }
+
+    public function getOrganizationCreatedDate()
+    {
+        $cache = $this->integration->getCache();
+
+        $organizationCreatedDate = $cache->getItem('organization.created_date');
+
+        if (!$organizationCreatedDate->isHit()) {
+            $queryUrl     = $this->integration->getQueryUrl();
+            $organization = $this->request('query', ['q' => 'SELECT CreatedDate from Organization'], 'GET', false, null, $queryUrl);
+            $organizationCreatedDate->set($organization['records'][0]['CreatedDate']);
+            $cache->save($organizationCreatedDate);
+        }
+
+        return $organizationCreatedDate->get();
     }
 }
