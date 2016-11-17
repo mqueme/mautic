@@ -846,7 +846,7 @@ class SalesforceIntegration extends CrmAbstractIntegration
      */
     public function getCache()
     {
-        $cacheDir = $this->dispatcher->getContainer()->getParameter('kernel.cache_dir');
+        $cacheDir = $this->dispatcher->getContainer()->get('mautic.helper.paths')->getSystemPath('cache');
 
         return new FilesystemAdapter('integration.salesforce', 0, $cacheDir);
     }
