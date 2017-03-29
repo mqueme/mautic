@@ -73,10 +73,10 @@ class FeatureSettingsType extends AbstractType
             $session = $this->session;
             $limit   = $session->get('mautic.lead.limit', $this->coreParametersHelper->getParameter('default_pagelimit'));
             $page    = $session->get('mautic.plugin.lead.page', 1);
-            $start   = $session->get('mautic.plugin.lead.start', 1);
+            $start   = $session->get('mautic.plugin.lead.start', 0);
 
             $companyPage  = $session->get('mautic.plugin.company.lead.page', 1);
-            $companyStart = $session->get('mautic.plugin.company.start', 1);
+            $companyStart = $session->get('mautic.plugin.company.start', 0);
 
             $settings = [
                 'silence_exceptions' => false,
@@ -148,7 +148,7 @@ class FeatureSettingsType extends AbstractType
                     'page'                 => $page,
                     'limit'                => $limit,
                     'start'                => $start,
-                    'fixedPageNum'         => round($totalFields / $limit),
+                    'fixedPageNum'         => ceil($totalFields / $limit),
                 ]
             );
             if (!empty($integrationCompanyFields)) {
@@ -171,7 +171,7 @@ class FeatureSettingsType extends AbstractType
                         'page'                       => $companyPage,
                         'limit'                      => $limit,
                         'start'                      => $companyStart,
-                        'fixedPageNum'               => round($totalCompanyFields / $limit),
+                        'fixedPageNum'               => ceil($totalCompanyFields / $limit),
                     ]
                 );
             }
